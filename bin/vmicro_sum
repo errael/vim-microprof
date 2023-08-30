@@ -1,0 +1,204 @@
+#!/bin/bash
+
+CMD=${0##*/}
+DIR=${0%/*}
+
+AWKDIR=$(realpath $DIR/$CMD)
+AWKDIR=${AWKDIR%/*}/awk
+: ${AWKPATH:=.:$AWKDIR}
+export AWKPATH
+
+# Parse the vim profiler output, summarize the marked lines.
+# Program lines marked with "###-?" are processed
+
+# A marker is "###-?", the ? stands for a single character
+# typically alpha numberic
+# The "first" file build/*#01*-1, first params (#01) first run (-1),
+# is examined to determine what marks to look for.
+
+# There may be multiple of the same mark. It would be used for something like:
+#               for v in a_list         ###-3
+#                   add(result, v)      ###-3
+#               endfor                  ###-3
+# The times associated with "###-3" are added together
+# and the count on THE FIRST LINE is used
+#
+# NOTE: screws up if a vim9script line can not start with a number.
+
+
+usage() {
+    echo "$CMD [-d <data-dir>] [-s] [-w] [--ocombine] [--osummarize] [--opercent] [--otable ]"
+    echo "    $CMD operates on data files produced by vmicro_run."
+    echo "    With no options, executes the following stages:"
+    echo "    combine_multi_line | summarize_param_runs | percent_change | table"
+    echo "    The --o* options output the result of the specified stage;"
+    echo "    later stages are not processed. The earliest stage wins."
+    echo
+    echo "    -d <dir>      input/output directory, default 'build'"
+    echo "    -s            stats: display lambda in table"
+    echo "    -w            output width, shrink vim9code to fit"
+    echo "    --ocombine    output combine_multi_line"
+    echo "    --osummarize  output summarize_param_runs"
+    echo "    --opercent    output percent_change"
+    echo "    --otable      output table, default"
+    echo
+    echo "    Examine LOG* in <dir> for details"
+    exit 1
+}
+
+declare TEMP
+TEMP=$(getopt -o "w:d:hs" \
+    --long 'ocombine,osummarize,opercent,otable' \
+    -n "$CMD" -- "$@")
+if [[ $? -ne 0 ]]; then usage > /dev/stderr; fi
+eval set -- "$TEMP"
+unset TEMP
+
+# set default output directory
+build="build"
+
+typeset -i sflag
+typeset -i xsflag
+typeset -i xpflag
+typeset -i xtflag
+typeset -i width
+while true
+do
+  case "$1" in
+      -d) build="$2";                             shift 2 ;;
+      -s) sflag=1;                                shift   ;;
+      -w) width="$2";                             shift 2 ;;
+      # Note the --o* options set what to skip
+      --ocombine)   xsflag=1;xpflag=1;xtflag=1;   shift   ;;
+      --osummarize) xpflag=1;xtflag=1;            shift   ;;
+      --opercent)   xtflag=1;                     shift   ;;
+      --otable)                                   shift   ;;
+      -h) usage                                           ;;
+      --) shift
+          break
+          ;;
+      *) echo Internal Error "'$1'"; exit 1   ;;
+  esac
+done
+
+if (($# != 0))
+then
+    echo "Trailing argument."
+    usage
+fi
+
+if [[ ! -d "$build" ]]
+then
+    echo "'$build' not a directory" > /dev/stderr
+    exit
+fi
+
+NoteOutputFile=$build/LOG-sum
+
+Main() {
+    echo Code Markers: $(markers) > $NoteOutputFile
+
+    # for each set of parameters
+    for param in $build/*-1
+    do
+        parameters_base=${param%-1} # like: build/prof_keys#01-tag-loops-500
+        parameters_base=${parameters_base#$build/} # like: prof_keys#01-tag-loops-500
+
+        {
+            echo PARAMS: $parameters_base
+
+            for f in $build/$parameters_base-*
+            do
+                echo RUN: $f
+                cat $f
+            done
+        }
+    done | combine_multi_line | summarize_param_runs | percent_change | do_table
+}
+
+# output width, width_table/width_sum/width_percent passed to awk
+# if not present
+
+if ((width > 0))
+then
+    if ((xsflag)) # combine does not get width restriction
+    then
+        :
+    elif ((xpflag)) # summary is output
+    then
+        warg="-vwidth_sum=$width"
+    elif ((xtflag)) # percent is output
+    then
+        warg="-vwidth_percent=$width"
+    else # table is output
+        warg="-vwidth_table=$width"
+    fi
+fi
+
+# input/output directory awk variables
+barg="-voutput_dir=$build -vNoteOutputFile=$NoteOutputFile"
+
+if ((sflag))
+then
+    sarg="-vstatistics=1"
+fi
+
+if [[ -e $build/HEADER_LABEL ]]
+then
+    harg="-vheading_label=$(< $build/HEADER_LABEL)"
+fi
+
+do_table() {
+    if ((xtflag)); then
+        cat
+    else
+        gawk $warg $barg $harg $sarg \
+            -f vimprof_create_table.gawk -i lib_err.gawk
+    fi
+}
+
+# sum time for specified algorithm; outputs 1 line per algorithm per file
+# NOTE: the nOps (count) is taken from the first line
+combine_multi_line() {
+    gawk $warg $barg -f vimprof_combine_lines.gawk -i lib_err.gawk
+}
+
+summarize_param_runs() {
+    if ((xsflag)); then
+        cat
+    else
+        gawk $warg $barg $sarg -f vimprof_summarize_runs.gawk -i lib_err.gawk
+    fi
+}
+
+# prepend change in us/op (first field) to each input line
+percent_change() {
+    if ((xpflag)); then
+        cat
+    else
+        gawk $warg -f vimprof_percent.gawk -i lib_err.gawk
+    fi
+}
+
+markers() {
+    # Find the markers
+    for file in $build/*-1
+    do
+        #local markslines=$(grep '###-.\b' $file)
+        #echo "$markslines" | while read line
+        grep '###-.\b' $file | while read line
+        do
+            if [[ "$line" =~ '###'-(.) ]]
+            then
+                echo ${BASH_REMATCH[1]}
+            fi
+        done | uniq
+
+        # only need to look at one file, so get out
+        break
+    done
+    return
+}
+
+Main
+

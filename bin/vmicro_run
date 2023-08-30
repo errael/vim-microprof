@@ -1,0 +1,77 @@
+#!/bin/bash
+
+CMD=${0##*/}
+DIR=${0%/*}
+
+# Run a vimscript setting things up assuming the script
+# uses the micro_prof.vim framework for micro benchmarking.
+
+usage() {
+    echo "$CMD [-v <vim-exec> ] [-d <dir>] [--log <chan-log>] <vimscript>"
+    echo "    Execute vimscript for micro benchmarking"
+    echo
+    echo "    -d <dir>      output directory, default 'build'"
+    echo "    -v <path>     vim executable"
+    echo "    --version     vim version"
+    echo "    --log <fname> vim's channel log, no whitespace in fname"
+    exit 1
+}
+
+declare TEMP
+TEMP=$(getopt -o "d:hv:" --long 'version,log:' -n "$CMD" -- "$@")
+if [[ $? -ne 0 ]]; then usage > /dev/stderr; fi
+eval set -- "$TEMP"
+unset TEMP
+
+build=""
+declare -i versionflag=0
+EX=ex
+LOG=
+
+while true
+do
+  case "$1" in
+      -d) build="$2";                             shift 2 ;;
+      -v) EX="$2";                                shift 2 ;;
+      --version) versionflag=1;                   shift 1 ;;
+      --log) LOG="--log $2";                      shift 2 ;;
+      -h) usage                                           ;;
+      --) shift
+          break
+          ;;
+      *) echo Internal Error "'$1'"; exit 1   ;;
+  esac
+done
+
+if ((versionflag)); then
+    $EX --version | head -2
+    exit 0
+fi
+
+if (($# == 0))
+then
+    echo "vimscript file not specified."
+    usage
+fi
+
+if (($# > 1))
+then
+    echo "Only one vimscript file allowed."
+    usage
+fi
+
+vimscript=$1
+
+if [[ -n "$build" ]]
+then
+    buildarg="let g:profiling_output_dir = '$build'"
+fi
+
+$EX -e -s -u NONE $LOG \
+    -c "$buildarg" \
+    -c "redir >> /dev/stdout" \
+    -c "source $vimscript" \
+    -c q
+rc=$?
+echo
+exit $rc
