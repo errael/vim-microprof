@@ -1,54 +1,3 @@
-# vim-microprof
-Profile one-line/short sequences of vim9script.
-
-Here's a sample of usage and output. There's a copy of the script that produces
-this below, its name is assign_prof.vim. Find it in
-[examples](examples/assign_prof.vim)
-
-```
-$ vmicro_run the_script_see_below
-$ vmicro_sum -w 60
-=== assign micro-prof ===
- 50-100 100-50  200-2 : nLoops-nKeys (usec/op)
-  0.036  0.040  0.039 : var local = n_value            ###-A
-  0.037  0.035  0.034 : local = C.static_var           ###-D
-  0.059  0.055  0.050 : local = a_class.this_var       ###-G
-  0.180  0.173  0.170 : local = a_class.Getter()       ###-J
-  0.050  0.043  0.042 : var list1 = the_list           ###-T
-  0.480  0.310  0.074 : var d = the_dict               ###-U
-```
-
-Help output
-```
-$ vmicro_run -h
-vmicro_run [-v <vim-exec> ] [-d <dir>] [--log <chan-log>] <vimscript>
-    Execute vimscript for micro benchmarking
-
-    -d <dir>      output directory, default 'build'
-    -v <path>     vim executable
-    --version     vim version
-    --log <fname> vim's channel log, no whitespace in fname
-$ vmicro_sum -h
-vmicro_sum [-d <data-dir>] [-s] [-w] [--ocombine] [--osummarize] [--opercent] [--otable ]
-    vmicro_sum operates on data files produced by vmicro_run.
-    With no options, executes the following stages:
-    combine_multi_line | summarize_param_runs | percent_change | table
-    The --o* options output the result of the specified stage;
-    later stages are not processed. The earliest stage wins.
-
-    -d <dir>      input/output directory, default 'build'
-    -s            stats: display lambda in table
-    -w            output width, shrink vim9code to fit
-    --ocombine    output combine_multi_line
-    --osummarize  output summarize_param_runs
-    --opercent    output percent_change
-    --otable      output table, default
-
-    Examine LOG* in <dir> for details
-```
-
-Example script. The script is also available in [examples](examples)
-```
 vim9script
 
 import 'profiling/micro_prof.vim'
@@ -160,4 +109,3 @@ micro_prof.Desc([printf('=== assign micro-prof ===')])
 micro_prof.Note([printf("=== start ===")])
 micro_prof.RunAll(funcs, t_params, RunPrep, 'nLoops-nKeys', n_runs_per_column)
 
-```

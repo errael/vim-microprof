@@ -1,0 +1,10 @@
+syntax: glob
+
+tags
+
+*~
+*.sw[pmno]
+*.orig
+*.orig.*
+*.rej
+
