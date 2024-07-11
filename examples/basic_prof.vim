@@ -85,6 +85,70 @@ def Fun4(): void
     dummy = 1
 enddef
 
+def Builtins(): void
+    var blob1 = 0z01
+    var ret: any
+    dummy = 1
+    ret = type(blob1)               ###-a
+    dummy = 1
+    ret = getpid()                  ###-b
+    dummy = 1
+    ret = id(blob1)                 ###-c
+    dummy = 1
+    ret = typename(blob1)           ###-d
+    dummy = 1
+    ret = getcurpos()               ###-e
+    dummy = 1
+enddef
+
+class C0
+endclass
+
+class C1
+    var a: number
+endclass
+
+class C2
+    var a: number
+    var b: number
+endclass
+
+class C4
+    var a: number
+    var b: number
+    var c: number
+    var d: number
+endclass
+
+def ListDictObj(): void
+    var x: any
+    dummy = 1
+    x = []                          ###-g
+    dummy = 1
+    x = {}                          ###-h
+    dummy = 1
+    x = C0.new()                    ###-i
+    dummy = 1
+    x = [1]                         ###-j
+    dummy = 1
+    x = {a: 1}                      ###-k
+    dummy = 1
+    x = C1.new(1)                   ###-l
+    dummy = 1
+    x = [1, 2]                      ###-m
+    dummy = 1
+    x = {a: 1, b: 2}                ###-n
+    dummy = 1
+    x = C2.new(1, 2)                ###-o
+    dummy = 1
+    x = [1, 2, 3, 4]                ###-p
+    dummy = 1
+    x = {a: 1, b: 2, c: 3, d: 4}    ###-q
+    dummy = 1
+    x = C4.new(1, 2, 3, 4)          ###-r
+    dummy = 1
+enddef
+
 def Play2(...args: list<any>): number
     var v = a_value
 
@@ -134,6 +198,8 @@ var funcs: list<list<func>> = [
     [ Fun0, ],
     [ Fun2, ],
     [ Fun4, ],
+    [ Builtins, ],
+    [ ListDictObj, ],
 ]
 
 # tag, n_loops
